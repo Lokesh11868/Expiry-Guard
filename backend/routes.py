@@ -101,6 +101,9 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user)):
 async def upload_image(file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
     try:
         image_bytes = await file.read()
+        MAX_SIZE = 20 * 1024 * 1024  
+        if len(image_bytes) > MAX_SIZE:
+            return {"error": "File size exceeds the maximum permissible file size limit of 10MB"}
         text = extract_text_from_image(image_bytes)
         expiry_date = extract_expiry_date_from_text(text)
         import base64
