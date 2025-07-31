@@ -7,6 +7,16 @@ router = APIRouter()
 import threading
 current_scheduler = {'thread': None, 'hour': 20, 'minute': 11}
 
+def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    from config import JWT_SECRET, JWT_ALGORITHM
+    from jose import jwt, JWTError
+    try:
+        payload = jwt.decode(credentials.credentials, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        user = users_collection.find_one({"_id": ObjectId(payload.get("sub"))})
+        if not user: raise HTTPException(status_code=401, detail="Invalid token")
+        return user
+    except JWTError: raise HTTPException(status_code=401, detail="Invalid token")
+
 @router.post("/scheduler/time")
 async def set_scheduler_time(data: dict, current_user: dict = Depends(get_current_user)):
     hour = int(data.get('hour', 6))
