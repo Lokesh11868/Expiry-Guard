@@ -4,7 +4,6 @@ import os
 security = HTTPBearer()
 router = APIRouter()
 
-from email_scheduler import schedule_daily_alerts
 import threading
 current_scheduler = {'thread': None, 'hour': 20, 'minute': 11}
 
