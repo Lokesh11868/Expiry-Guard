@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "start": "serve -s dist",
     "lint": "eslint .",
     "preview": "vite preview"
   },
@@ -24,7 +25,8 @@
     "react-feather": "^2.0.10",
     "react-hot-toast": "^2.5.2",
     "react-qr-barcode-scanner": "^2.1.8",
-    "react-router-dom": "^7.6.3"
+    "react-router-dom": "^7.6.3",
+    "serve": "^14.2.4"
   },
   "devDependencies": {
     "@eslint/js": "^9.9.1",
