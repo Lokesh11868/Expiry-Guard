@@ -9,25 +9,25 @@ import threading
 current_scheduler = {'thread': None, 'hour': 20, 'minute': 11}
 
 @router.post("/scheduler/time")
-async def set_scheduler_time(data: dict):
-    hour = int(data.get('hour', 20))
+async def set_scheduler_time(data: dict, current_user: dict = Depends(get_current_user)):
+    hour = int(data.get('hour', 6))
     minute = int(data.get('minute', 0))
-    current_scheduler['hour'] = hour
-    current_scheduler['minute'] = minute
-    flag_path = os.path.abspath("notifications_on.flag")
-    if os.path.exists(flag_path):
-        schedule_daily_alerts(hour=hour, minute=minute)
-        return {"message": f"Scheduler time updated to {hour:02d}:{minute:02d} and scheduler started"}
-    else:
-        return {"message": f"Scheduler time updated to {hour:02d}:{minute:02d}, but notifications are OFF so scheduler not started"}
+    # Update user's notification_time in users_collection
+    users_collection.update_one(
+        {"_id": current_user["_id"]},
+        {"$set": {"notification_time": {"hour": hour, "minute": minute}}}
+    )
+    return {"message": f"Notification time updated to {hour:02d}:{minute:02d}"}
 
 @router.post("/notifications/on")
 async def enable_notifications():
     import os
+    from email_scheduler import schedule_daily_alerts_for_all_users
     flag_path = os.path.abspath("notifications_on.flag")
     with open(flag_path, "w") as f:
         f.write("on")
-    return {"message": "Notifications enabled"}
+    schedule_daily_alerts_for_all_users()
+    return {"message": "Notifications enabled and scheduler started"}
 
 
 @router.post("/notifications/off")
@@ -70,9 +70,11 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(securit
 async def signup(user: UserCreate):
     if users_collection.find_one({"username": user.username}): raise HTTPException(status_code=400, detail="Username already exists")
     if users_collection.find_one({"email": user.email}): raise HTTPException(status_code=400, detail="Email already exists")
-    doc = {"username": user.username, "email": user.email, "password": hash_password(user.password), "created_at": datetime.utcnow()}
+    # Set default notification_time if not provided
+    notification_time = user.notification_time if user.notification_time else {"hour": 6, "minute": 0}
+    doc = {"username": user.username, "email": user.email, "password": hash_password(user.password), "created_at": datetime.utcnow(), "notification_time": notification_time}
     result = users_collection.insert_one(doc)
-    return {"access_token": create_access_token(data={"sub": str(result.inserted_id)}), "token_type": "bearer", "user": {"id": str(result.inserted_id), "username": user.username, "email": user.email}}
+    return {"access_token": create_access_token(data={"sub": str(result.inserted_id)}), "token_type": "bearer", "user": {"id": str(result.inserted_id), "username": user.username, "email": user.email, "notification_time": notification_time}}
 
 
 from pymongo.errors import ExecutionTimeout
@@ -101,9 +103,6 @@ async def get_current_user_info(current_user: dict = Depends(get_current_user)):
 async def upload_image(file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
     try:
         image_bytes = await file.read()
-        MAX_SIZE = 20 * 1024 * 1024  
-        if len(image_bytes) > MAX_SIZE:
-            return {"error": "File size exceeds the maximum permissible file size limit of 10MB"}
         text = extract_text_from_image(image_bytes)
         expiry_date = extract_expiry_date_from_text(text)
         import base64
